@@ -1,0 +1,51 @@
+# This workflow can be triggered by another repository to build Docker images using docker bake
+
+name: Docker Bake Build
+run-name: |
+    Docker Bake Build - @{ github.actor } with ${{  github.event.client_payload.source_ref }} on ${{ github.event.client_payload.source_rep }}
+
+# This workflow is designed to be triggered by repository_dispatch events
+on:
+  repository_dispatch:
+    types: [event-bake]
+
+env:
+    BUILD_REP: ${{ github.event.client_payload.source_rep }}
+    BUILD_REF: ${{ github.event.client_payload.source_ref }}
+    RUNNER_TYPE: ${{ github.event.client_payload.runner || 'ubuntu-latest' }}
+
+jobs:
+    bake:
+        runs-on: ${{ github.event.client_payload.runner || 'ubuntu-latest' }}
+        steps:
+        - name: Display trigger information
+          run: |
+            echo "Triggered by: ${{ github.actor }}"
+            echo "Event type: ${{ github.event_name }}"
+            echo "Repository: ${{ github.event.client_payload.source_rep || 'Not specified' }}"
+            echo "Reference: ${{ github.event.client_payload.source_ref || 'Not specified' }}"
+            echo "Runner: ${{ github.event.client_payload.runner || 'ubuntu-latest (default)' }}"
+            echo "Current runner: ${{ runner.os }}"
+
+        - name: Get more disk space
+          uses: jlumbroso/free-disk-space@main
+          with:
+            tool-cache: false
+            android: true
+            dotnet: true
+            haskell: true
+            large-packages: true
+            swap-storage: true
+
+        - name: Checkout Armbian build framework locally
+          uses: actions/checkout@v4
+          with:
+            repository: ${{ github.actor }}/${{ env.BUILD_REP }}
+            token: ${{ secrets.GH_ACCESS_TOKEN }}
+            ref: ${{ env.BUILD_REF }}
+            sparse-checkout: action.yml
+            sparse-checkout-cone-mode: false
+            clean: false
+
+        - name: Build local
+          uses: ./
