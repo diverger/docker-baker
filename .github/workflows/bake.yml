@@ -1,12 +1,16 @@
 # This workflow can be triggered by another repository to build Docker images using docker bake
 
-name: Docker Bake Build
-run-name: "Docker Bake Build | Actor: ${{ github.actor }} | Ref: ${{ github.event.client_payload.source_ref }} | Repo: ${{ github.event.client_payload.source_rep }}"
+name: Docker Bake
+run-name: "Docker Bake | Actor: ${{ github.actor }} | Repo: ${{ github.event.client_payload.source_rep }} | Ref: ${{ github.event.client_payload.source_ref }}"
 
 # This workflow is designed to be triggered by repository_dispatch events
 on:
   repository_dispatch:
     types: [event-bake]
+
+concurrency:
+  group: ${{ github.event.client_payload.source_rep }}-${{ github.event.client_payload.source_ref }}
+  cancel-in-progress: true
 
 env:
     SOURCE_REP: ${{ github.event.client_payload.source_rep }}
@@ -14,7 +18,8 @@ env:
     RUNNER_TYPE: ${{ github.event.client_payload.runner || 'ubuntu-latest' }}
 
 jobs:
-    bake:
+    docker-bake:
+        name: "Build Docker Image for ${{ github.event.client_payload.source_rep }}@${{ github.event.client_payload.source_ref }}"
         runs-on: ${{ github.event.client_payload.runner || 'ubuntu-latest' }}
         steps:
         - name: Display trigger information
