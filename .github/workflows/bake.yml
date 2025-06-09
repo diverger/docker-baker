@@ -10,8 +10,8 @@ on:
     types: [event-bake]
 
 env:
-    BUILD_REP: ${{ github.event.client_payload.source_rep }}
-    BUILD_REF: ${{ github.event.client_payload.source_ref }}
+    SOURCE_REP: ${{ github.event.client_payload.source_rep }}
+    SOURCE_REF: ${{ github.event.client_payload.source_ref }}
     RUNNER_TYPE: ${{ github.event.client_payload.runner || 'ubuntu-latest' }}
 
 jobs:
@@ -25,6 +25,9 @@ jobs:
             echo "Repository: ${{ github.event.client_payload.source_rep || 'Not specified' }}"
             echo "Reference: ${{ github.event.client_payload.source_ref || 'Not specified' }}"
             echo "Runner: ${{ github.event.client_payload.runner || 'ubuntu-latest (default)' }}"
+            echo "Registry type: ${{ github.event.client_payload.registry_type || 'ghcr (default)' }}"
+            echo "GitHub token source: ${{ github.event.client_payload.github_token && 'payload' || 'secrets' }}"
+            echo "ACR credentials source: ${{ github.event.client_payload.acr_username && 'payload' || 'secrets' }}"
             echo "Current runner: ${{ runner.os }}"
 
         - name: Get more disk space
@@ -40,12 +43,16 @@ jobs:
         - name: Checkout Armbian build framework locally
           uses: actions/checkout@v4
           with:
-            repository: ${{ github.actor }}/${{ env.BUILD_REP }}
-            token: ${{ secrets.GH_ACCESS_TOKEN }}
-            ref: ${{ env.BUILD_REF }}
-            sparse-checkout: action.yml
-            sparse-checkout-cone-mode: false
+            repository: ${{ env.SOURCE_REP }}
+            token: ${{ github.event.client_payload.github_token }}
+            ref: ${{ env.SOURCE_REF }}
             clean: false
 
         - name: Build local
           uses: ./
+          with:
+            github_token: ${{ github.event.client_payload.github_token }}
+            acr_username: ${{ github.event.client_payload.acr_username }}
+            acr_password: ${{ github.event.client_payload.acr_password }}
+            acr_serverid: ${{ github.event.client_payload.acr_serverid }}
+            registry_type: ${{ github.event.client_payload.registry_type || 'ghcr' }}
