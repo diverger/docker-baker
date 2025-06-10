@@ -30,6 +30,7 @@ jobs:
             echo "Reference: ${{ github.event.client_payload.source_ref || 'Not specified' }}"
             echo "Runner: ${{ github.event.client_payload.runner || 'ubuntu-latest (default)' }}"
             echo "Registry type: ${{ github.event.client_payload.registry_type || 'ghcr (default)' }}"
+            echo "Dockerfile variant: ${{ github.event.client_payload.dockerfile_variant || 'standard (default)' }}"
             echo "GitHub token source: ${{ github.event.client_payload.github_token && 'payload' || 'secrets' }}"
             echo "ACR credentials source: ${{ github.event.client_payload.acr_username && 'payload' || 'secrets' }}"
             echo "Current runner: ${{ runner.os }}"
@@ -60,3 +61,4 @@ jobs:
             acr_password: ${{ github.event.client_payload.acr_password }}
             acr_serverid: ${{ github.event.client_payload.acr_serverid }}
             registry_type: ${{ github.event.client_payload.registry_type || 'ghcr' }}
+            dockerfile_variant: ${{ github.event.client_payload.dockerfile_variant || 'standard' }}
