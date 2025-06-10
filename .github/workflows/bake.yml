@@ -44,7 +44,7 @@ jobs:
             large-packages: true
             swap-storage: true
 
-        - name: Checkout Armbian build framework locally
+        - name: Checkout source repository
           uses: actions/checkout@v4
           with:
             repository: ${{ env.SOURCE_REP }}
