@@ -1,0 +1,159 @@
+name: Mirror Sync
+
+on:
+  push:
+    branches: ['**']
+  delete:
+    branches: ['**']
+  create:
+    branches: ['**']
+  schedule:
+    - cron: '0 */4 * * *'  # Every 4 hours
+  workflow_dispatch:
+    inputs:
+      sync_type:
+        description: 'Type of sync'
+        required: true
+        default: 'full'
+        type: choice
+        options:
+          - 'full'
+          - 'branches_only'
+          - 'tags_only'
+
+env:
+  MIRROR_REPO: ${{ secrets.MIRROR_REPO }}  # Format: username/repo-name
+
+jobs:
+  sync-repository:
+    if: ${{ github.repository_owner == 'diverger' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GH_ACCESS_TOKEN }}
+
+      - name: Configure Git
+        run: |
+          git config --global user.name "🤖 Mirror Sync Bot"
+          git config --global user.email "noreply@github.com"
+          git config --global init.defaultBranch main
+
+      - name: Setup mirror remote
+        run: |
+          echo "Setting up mirror remote for: $MIRROR_REPO"
+          git remote add mirror https://${{ secrets.GH_ACCESS_TOKEN }}@github.com/$MIRROR_REPO.git
+
+          # Test connection
+          git ls-remote mirror > /dev/null && echo "✅ Mirror remote accessible" || echo "❌ Mirror remote not accessible"
+
+      - name: Sync all branches
+        if: ${{ github.event.inputs.sync_type != 'tags_only' }}
+        run: |
+          echo "🔄 Syncing all branches..."
+
+          # Fetch everything from origin
+          git fetch origin --prune
+          git fetch origin '+refs/heads/*:refs/remotes/origin/*' --prune
+
+          # Get all branches from origin
+          for branch in $(git branch -r | grep 'origin/' | grep -v 'origin/HEAD' | sed 's/origin\///'); do
+            echo "Processing branch: $branch"
+
+            # Checkout and track the branch
+            git checkout -B $branch origin/$branch
+
+            # Push to mirror
+            git push mirror $branch --force
+
+            echo "✅ Synced branch: $branch"
+          done
+
+      - name: Sync all tags
+        if: ${{ github.event.inputs.sync_type != 'branches_only' }}
+        run: |
+          echo "🏷️ Syncing all tags..."
+          git fetch origin --tags --prune-tags
+          git push mirror --tags --force
+
+      - name: Clean up deleted branches on mirror
+        if: ${{ github.event.inputs.sync_type != 'tags_only' }}
+        run: |
+          echo "🧹 Cleaning up deleted branches..."
+
+          # Fetch mirror branches
+          git fetch mirror --prune
+
+          # Find branches that exist on mirror but not on origin
+          for mirror_branch in $(git branch -r | grep 'mirror/' | sed 's/mirror\///'); do
+            if ! git branch -r | grep -q "origin/$mirror_branch"; then
+              echo "Deleting branch $mirror_branch from mirror (no longer exists on origin)"
+              git push mirror --delete $mirror_branch || echo "Failed to delete $mirror_branch (may not exist)"
+            fi
+          done
+
+      - name: Sync repository metadata
+        run: |
+          echo "📊 Sync Summary:"
+          echo "Source Repository: $(git remote get-url origin)"
+          echo "Mirror Repository: $(git remote get-url mirror)"
+          echo "Branches synced: $(git branch -r | grep 'origin/' | wc -l)"
+          echo "Tags synced: $(git tag | wc -l)"
+          echo "Last commit: $(git log -1 --pretty=format:'%h - %s (%an, %ar)')"
+
+  sync-releases:
+    runs-on: ubuntu-latest
+    needs: sync-repository
+    if: ${{ github.event.inputs.sync_type == 'full' || github.event.inputs.sync_type == '' }}
+    steps:
+      - name: Sync GitHub Releases
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GH_ACCESS_TOKEN }}
+          script: |
+            const sourceOwner = context.repo.owner;
+            const sourceRepo = context.repo.repo;
+            const [mirrorOwner, mirrorRepo] = process.env.MIRROR_REPO.split('/');
+
+            console.log(`Syncing releases from ${sourceOwner}/${sourceRepo} to ${mirrorOwner}/${mirrorRepo}`);
+
+            try {
+              // Get releases from source repository
+              const sourceReleases = await github.rest.repos.listReleases({
+                owner: sourceOwner,
+                repo: sourceRepo,
+                per_page: 100
+              });
+
+              // Get existing releases from mirror
+              const mirrorReleases = await github.rest.repos.listReleases({
+                owner: mirrorOwner,
+                repo: mirrorRepo,
+                per_page: 100
+              });
+
+              const existingTags = new Set(mirrorReleases.data.map(r => r.tag_name));
+
+              // Sync releases that don't exist in mirror
+              for (const release of sourceReleases.data) {
+                if (!existingTags.has(release.tag_name)) {
+                  console.log(`Creating release: ${release.tag_name}`);
+
+                  await github.rest.repos.createRelease({
+                    owner: mirrorOwner,
+                    repo: mirrorRepo,
+                    tag_name: release.tag_name,
+                    name: release.name,
+                    body: release.body + '\n\n---\n*This release was automatically mirrored from the source repository.*',
+                    draft: release.draft,
+                    prerelease: release.prerelease
+                  });
+                }
+              }
+
+              console.log('✅ Releases sync completed');
+            } catch (error) {
+              console.log('⚠️ Could not sync releases:', error.message);
+            }
