@@ -1,7 +1,7 @@
 # This workflow can be triggered by another repository to build Docker images using docker bake
 
 name: Docker Bake
-run-name: "Docker Bake | Actor: ${{ github.actor }} | Repo: ${{ github.event.client_payload.source_rep }} | Ref: ${{ github.event.client_payload.source_ref }}"
+run-name: "Docker Bake | Actor: ${{ github.actor }} | Repo: ${{ github.event.client_payload.source_rep }} | Ref: ${{ github.event.client_payload.source_ref }} | Variant: ${{ github.event.client_payload.dockerfile_variant || 'standard' }}"
 
 # This workflow is designed to be triggered by repository_dispatch events
 on:
