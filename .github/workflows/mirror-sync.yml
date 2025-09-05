@@ -109,7 +109,7 @@ jobs:
     if: ${{ github.event.inputs.sync_type == 'full' || github.event.inputs.sync_type == '' }}
     steps:
       - name: Sync GitHub Releases
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           github-token: ${{ secrets.GH_ACCESS_TOKEN }}
           script: |
