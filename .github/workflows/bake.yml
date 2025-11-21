@@ -46,7 +46,7 @@ jobs:
             swap-storage: true
 
         - name: Checkout source repository
-          uses: actions/checkout@v5
+          uses: actions/checkout@v6
           with:
             repository: ${{ env.SOURCE_REP }}
             token: ${{ github.event.client_payload.github_token }}
